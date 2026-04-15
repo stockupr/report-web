@@ -1313,8 +1313,49 @@ function initCharts() {
         options: {
             responsive: true, maintainAspectRatio: false,
             cutout: '60%',
-            plugins: { legend: { position: 'bottom' } }
-        }
+            plugins: { legend: { position: 'bottom' } }, // fallback
+            layout: { padding: 40 }
+        },
+        plugins: [{
+            id: 'callout-lines',
+            afterDraw: (chart) => {
+                if (chart.config.options.plugins.legend && chart.config.options.plugins.legend.display) return;
+                const ctx = chart.ctx;
+                const meta = chart.getDatasetMeta(0);
+                if (!meta.data || meta.data.length === 0) return;
+                
+                chart.data.labels.forEach((label, i) => {
+                    const arc = meta.data[i];
+                    if (!arc || arc.hidden) return;
+                    
+                    const dataset = chart.data.datasets[0];
+                    const data = dataset.data[i];
+                    const total = dataset.data.reduce((sum, v) => sum + v, 0);
+                    if (total === 0 || (data/total*100) < 1) return;
+
+                    const angle = (arc.startAngle + arc.endAngle) / 2;
+                    const r = arc.outerRadius;
+                    
+                    const edgeX = arc.x + Math.cos(angle) * r;
+                    const edgeY = arc.y + Math.sin(angle) * r;
+                    
+                    const outX = arc.x + Math.cos(angle) * (r + 15);
+                    const outY = arc.y + Math.sin(angle) * (r + 15);
+                    
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(edgeX, edgeY);
+                    ctx.lineTo(outX, outY);
+                    const isRight = Math.cos(angle) >= 0;
+                    ctx.lineTo(outX + (isRight ? 10 : -10), outY);
+                    
+                    ctx.strokeStyle = dataset.backgroundColor[i] || '#9ca3af';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    ctx.restore();
+                });
+            }
+        }]
     });
 
     // Channels Chart
@@ -1373,8 +1414,8 @@ function updateTrendChart(trendData) {
                 type: 'line',
                 label: "月毛利 (NT$)",
                 data: trendData.map(d => d.profit),
-                borderColor: '#10b981',
-                backgroundColor: '#10b981',
+                borderColor: '#374151',
+                backgroundColor: '#374151',
                 borderWidth: 2, tension: 0.4, pointRadius: 4,
                 yAxisID: 'y1',
                 order: 1
@@ -1403,6 +1444,8 @@ function updateCompositionChart(customersData) {
     let data = [top5Total, midTotal, otherTotal];
     const palette = ['#20b2aa', '#3b82f6', '#9ca3af'];
 
+    const total = data.reduce((sum, v) => sum + v, 0);
+
     compChart.data = {
         labels: labels,
         datasets: [
@@ -1412,6 +1455,38 @@ function updateCompositionChart(customersData) {
                 borderWidth: 1
             }
         ]
+    };
+
+    compChart.options.plugins.legend.display = false;
+    compChart.options.layout = { padding: 40 }; 
+    compChart.options.plugins.datalabels = {
+        labels: {
+            value: {
+                display: true,
+                color: '#fff',
+                formatter: (value, context) => {
+                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
+                    return pct > 0 ? pct + '%' : '';
+                },
+                font: { size: 14, weight: 'bold' },
+                textAlign: 'center',
+                anchor: 'center',
+                align: 'center'
+            },
+            name: {
+                display: true,
+                color: '#4b5563',
+                formatter: (value, context) => {
+                    const label = context.chart.data.labels[context.dataIndex];
+                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
+                    return pct > 0 ? label : '';
+                },
+                font: { size: 12, weight: '600' },
+                anchor: 'end',
+                align: 'end',
+                offset: 20
+            }
+        }
     };
 
     if (!compChart.options.plugins.tooltip) compChart.options.plugins.tooltip = {};
@@ -1513,6 +1588,8 @@ function updateProductChart(prodData) {
     const revColors = ['#20b2aa', '#3b82f6', '#f59e0b', '#374151', '#e5e7eb'];
     const profitColors = ['#10b981', '#6366f1', '#f97316', '#4b5563', '#9ca3af'];
     
+    document.getElementById('chart2-title').textContent = metric === 'revenue' ? '產品類別營收貢獻比例' : '產品類別毛利貢獻比例';
+
     const total = sorted.reduce((sum, d) => sum + d[metric], 0);
 
     productChart.data = {
@@ -1524,20 +1601,38 @@ function updateProductChart(prodData) {
         }]
     };
     
-    productChart.options.plugins.legend.display = true;
-    productChart.options.layout = { padding: 0 };
+    productChart.options.plugins.legend.display = false;
+    productChart.options.layout = { padding: 40 }; 
     productChart.options.plugins.datalabels = {
-        display: true,
-        color: '#fff',
-        formatter: (value, context) => {
-            const pct = total > 0 ? Math.round(value / total * 100) : 0;
-            return pct > 0 ? pct + '%' : '';
-        },
-        font: { size: 14, weight: 'bold' },
-        textAlign: 'center',
-        anchor: 'center',
-        align: 'center'
+        labels: {
+            value: {
+                display: true,
+                color: '#fff',
+                formatter: (value, context) => {
+                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
+                    return pct > 0 ? pct + '%' : '';
+                },
+                font: { size: 14, weight: 'bold' },
+                textAlign: 'center',
+                anchor: 'center',
+                align: 'center'
+            },
+            name: {
+                display: true,
+                color: '#4b5563',
+                formatter: (value, context) => {
+                    const label = context.chart.data.labels[context.dataIndex];
+                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
+                    return pct > 0 ? label : '';
+                },
+                font: { size: 12, weight: '600' },
+                anchor: 'end',
+                align: 'end',
+                offset: 20
+            }
+        }
     };
+
     productChart.update();
 }
 
