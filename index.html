@@ -1460,33 +1460,18 @@ function updateCompositionChart(customersData) {
     compChart.options.plugins.legend.display = false;
     compChart.options.layout = { padding: 40 }; 
     compChart.options.plugins.datalabels = {
-        labels: {
-            value: {
-                display: true,
-                color: '#fff',
-                formatter: (value, context) => {
-                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
-                    return pct > 0 ? pct + '%' : '';
-                },
-                font: { size: 14, weight: 'bold' },
-                textAlign: 'center',
-                anchor: 'center',
-                align: 'center'
-            },
-            name: {
-                display: true,
-                color: '#4b5563',
-                formatter: (value, context) => {
-                    const label = context.chart.data.labels[context.dataIndex];
-                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
-                    return pct > 0 ? label : '';
-                },
-                font: { size: 12, weight: '600' },
-                anchor: 'end',
-                align: 'end',
-                offset: 20
-            }
-        }
+        display: true,
+        color: '#4b5563',
+        formatter: (value, context) => {
+            const label = context.chart.data.labels[context.dataIndex];
+            const pct = total > 0 ? Math.round(value / total * 100) : 0;
+            return pct > 0 ? `${label}\n${pct}%` : '';
+        },
+        font: { size: 13, weight: '600' },
+        textAlign: 'center',
+        anchor: 'end',
+        align: 'end',
+        offset: 15
     };
 
     if (!compChart.options.plugins.tooltip) compChart.options.plugins.tooltip = {};
@@ -1556,7 +1541,18 @@ function updateSalesChart(repsData) {
                 data: sorted.map(d => d.growth),
                 borderColor: '#374151', backgroundColor: '#374151',
                 borderWidth: 2, tension: 0.4, pointRadius: 4,
-                order: 1, yAxisID: 'y1'
+                order: 1, yAxisID: 'y1',
+                datalabels: {
+                    display: true,
+                    align: 'top',
+                    anchor: 'end',
+                    color: '#374151',
+                    font: { weight: 'bold', size: 12 },
+                    offset: 4,
+                    formatter: function(value) {
+                        return (value > 0 ? '+' : '') + Math.round(value) + '%';
+                    }
+                }
             }
         ]
     };
@@ -1604,33 +1600,18 @@ function updateProductChart(prodData) {
     productChart.options.plugins.legend.display = false;
     productChart.options.layout = { padding: 40 }; 
     productChart.options.plugins.datalabels = {
-        labels: {
-            value: {
-                display: true,
-                color: '#fff',
-                formatter: (value, context) => {
-                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
-                    return pct > 0 ? pct + '%' : '';
-                },
-                font: { size: 14, weight: 'bold' },
-                textAlign: 'center',
-                anchor: 'center',
-                align: 'center'
-            },
-            name: {
-                display: true,
-                color: '#4b5563',
-                formatter: (value, context) => {
-                    const label = context.chart.data.labels[context.dataIndex];
-                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
-                    return pct > 0 ? label : '';
-                },
-                font: { size: 12, weight: '600' },
-                anchor: 'end',
-                align: 'end',
-                offset: 20
-            }
-        }
+        display: true,
+        color: '#4b5563',
+        formatter: (value, context) => {
+            const label = context.chart.data.labels[context.dataIndex];
+            const pct = total > 0 ? Math.round(value / total * 100) : 0;
+            return pct > 0 ? `${label}\n${pct}%` : '';
+        },
+        font: { size: 13, weight: '600' },
+        textAlign: 'center',
+        anchor: 'end',
+        align: 'end',
+        offset: 15
     };
 
     productChart.update();
