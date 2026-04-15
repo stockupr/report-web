@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客戶業績分析系統</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <!-- SheetJS (Excel Parsing) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    
+    <style>
+:root {
+    /* Color Palette */
+    --bg-color: #f0f4f8; /* Light blue-gray background */
+    --surface: #ffffff;
+    --text-primary: #1f2937;
+    --text-secondary: #4b5563;
+    --border-color: rgba(229, 231, 235, 0.5);
+    
+    /* Brand Colors */
+    --primary-gradient: linear-gradient(135deg, #1e3a5f 0%, #2a527c 100%);
+    --secondary-gradient: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+    --accent: #20b2aa; /* Light sea green */
+    --accent-light: rgba(32, 178, 170, 0.15);
+    
+    /* Tags */
+    --tag-stable-bg: #d1fae5;
+    --tag-stable-text: #065f46;
+    --tag-warn-bg: #fee2e2;
+    --tag-warn-text: #991b1b;
+    --tag-potential-bg: #e0e7ff;
+    --tag-potential-text: #3730a3;
+    
+    /* Metrics */
+    --positive: #10b981;
+    --negative: #ef4444;
+
+    /* Shadows & Border Radii */
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    --radius-lg: 1rem;
+    --radius-md: 0.5rem;
+    --radius-full: 9999px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    line-height: 1.5;
+    padding: 2rem;
+}
+
+.app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Glassmorphism Utilities */
+.glass {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+/* Header */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding: 1rem 0;
+}
+
+#dashboard-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Toggle Switch */
+.header-center {
+    display: flex;
+    justify-content: center;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: 3rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid #e5e7eb;
+}
+
+.toggle-label {
+    text-align: center;
+    line-height: 1.1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 0 1rem;
+    transition: color 0.3s;
+}
+
+.toggle-label.active {
+    color: var(--accent);
+}
+
+.toggle-label small {
+    font-size: 0.7rem;
+    font-weight: 400;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+    margin: 0 0.5rem;
+}
+
+.switch input { 
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--accent);
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: #10b981; /* Green for profit */
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+
+/* Header Right Options */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.upload-wrapper { position: relative; }
+
+.upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: white;
+    color: var(--text-primary);
+    border: 1px solid #e5e7eb;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s;
+}
+
+.upload-btn:hover {
+    background-color: #f9fafb;
+    border-color: #d1d5db;
+}
+
+.month-selector {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid #e5e7eb;
+}
+
+.select-css {
+    border: 1px solid #d1d5db;
+    border-radius: var(--radius-md);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    background-color: transparent;
+    outline: none;
+    cursor: pointer;
+}
+.select-css:focus { border-color: var(--accent); }
+
+/* KPI Grid */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.kpi-card {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 140px;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.kpi-card.primary-kpi {
+    background: var(--primary-gradient);
+    color: white;
+    border: none;
+}
+.kpi-card.secondary-kpi {
+    background: var(--secondary-gradient);
+    color: white;
+    border: none;
+}
+.kpi-card.neutral-kpi {
+    background: var(--secondary-gradient);
+    color: white;
+    border: none;
+}
+
+.kpi-title {
+    font-size: 0.95rem;
+    font-weight: 500;
+    opacity: 0.9;
+    margin-bottom: 0.25rem;
+}
+
+.kpi-value {
+    display: flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    margin: 0.5rem 0;
+}
+
+.kpi-card .currency {
+    font-size: 1.25rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.kpi-card .number {
+    font-size: 2.25rem;
+    font-weight: 700;
+    font-family: "SF Pro Display", "Inter", "Helvetica Neue", "Roboto", Arial, sans-serif;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+}
+
+.kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.kpi-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-top: auto;
+}
+
+.kpi-trend {
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.kpi-subtext {
+    font-size: 0.85rem;
+    opacity: 0.8;
+}
+
+.kpi-trend.up { color: #34d399; } /* Lighter green for dark bg */
+.kpi-trend.down { color: #f87171; }
+.kpi-trend.warn { color: #fff; background: #ef4444; border: 1px solid rgba(255,255,255,0.2); }
+
+/* Custom Progress Bar for Target */
+.progress-bg {
+    background: rgba(255, 255, 255, 0.2);
+    height: 6px;
+    border-radius: 4px;
+    width: 100%;
+    margin-top: 0.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.progress-fill {
+    background: #34d399;
+    height: 100%;
+    border-radius: 4px;
+}
+
+/* Charts Grid */
+.dashboard-main-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); /* 60/40% split */
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+.col-card-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.chart-card {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1; /* Make it stretch in flex column */
+}
+
+.chart-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 350px;
+    width: 100%;
+}
+
+/* Hidden utility */
+.hidden {
+    display: none !important;
+}
+
+/* Advanced Grid Configuration */
+#advanced-charts-container {
+    transition: all 0.3s ease;
+}
+
+/* Data Table Component */
+.table-card {
+    padding: 1.5rem;
+}
+
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.table-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.export-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: transparent;
+    border: 1px solid #d1d5db;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.export-btn:hover { background: #f3f4f6; }
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+th {
+    padding: 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+td {
+    padding: 1rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.no-wrap {
+    white-space: nowrap;
+}
+
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+th.sortable:hover {
+    background-color: #f3f4f6;
+}
+th.sortable::after {
+    content: " ↕";
+    font-size: 0.7rem;
+    opacity: 0.3;
+}
+th.sortable.sort-asc::after {
+    content: " ↑";
+    opacity: 1;
+}
+th.sortable.sort-desc::after {
+    content: " ↓";
+    opacity: 1;
+}
+
+tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+tbody tr:hover {
+    background-color: #f9fafb;
+}
+
+/* Status Tags */
+.status-tag {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.tag-stable {
+    background-color: var(--tag-stable-bg);
+    color: var(--tag-stable-text);
+}
+
+.tag-warn {
+    background-color: var(--tag-warn-bg);
+    color: var(--tag-warn-text);
+}
+
+.tag-potential {
+    background-color: var(--tag-potential-bg);
+    color: var(--tag-potential-text);
+}
+
+/* Utilities */
+.text-green { color: var(--positive); }
+.text-red { color: var(--negative); }
+.text-gray { color: var(--text-secondary); border-bottom: 1px dashed var(--text-secondary); display:inline-block; }
+
+.empty-state {
+    text-align: center;
+    padding: 3rem !important;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.kpi-card, .chart-card, .table-card {
+    animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .dashboard-main-grid { grid-template-columns: 1fr; }
+    .span-2 { grid-column: span 1; }
+    .header-right { flex-direction: column; align-items: flex-end; gap: 0.5rem;}
+}
+
+@media (max-width: 768px) {
+    body { padding: 1rem; }
+    .kpi-grid { grid-template-columns: 1fr; }
+    .dashboard-header { flex-direction: column; gap: 1rem; align-items: stretch;}
+    .header-left {text-align: center;}
+    .header-right { width: 100%; align-items: center; justify-content: center; flex-direction: column; gap: 1rem;}
+    .chart-wrapper { height: 300px; }
+    .kpi-card .number { font-size: 2rem; }
+    #dashboard-title { font-size: 1.25rem; text-align: center; }
+}
+
+</style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation / Search area omitted for brevity, focusing on main dashboard -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <h1 id="dashboard-title" style="line-height: 1.3;">2026年3月<br>業績分析報告</h1>
+            </div>
+            
+            <div class="header-center">
+                <div class="toggle-container">
+                    <span class="toggle-label active" id="label-revenue">
+                        營收<br><small>(Revenue)</small>
+                    </span>
+                    <label class="switch">
+                        <input type="checkbox" id="metric-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="toggle-label" id="label-profit">
+                        毛利<br><small>(Profit)</small>
+                    </span>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <!-- Data Month Dropdown / Upload Action -->
+                <div class="upload-wrapper">
+                    <input type="file" id="excel-upload" accept=".xlsx, .xls" hidden>
+                    <label for="excel-upload" class="upload-btn" id="upload-btn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        上傳 Excel 更新
+                    </label>
+                </div>
+                <button id="export-html-btn" class="upload-btn" style="background-color: var(--accent); color: white; border-color: var(--accent);" onclick="exportStaticHtml()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    匯出主管報表
+                </button>
+                <div class="month-selector">
+                    年度：
+                    <select id="year-dropdown" class="select-css">
+                        <option value="all">所有年度</option>
+                    </select>
+                </div>
+                <div class="month-selector">
+                    檢視月份：
+                    <select id="month-dropdown" class="select-css">
+                        <option value="all">全年度報表</option>
+                        <!-- options auto-generated -->
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card glass primary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-title" id="kpi1-title">本月總營收</div>
+                    <div class="kpi-trend up" id="kpi1-trend" style="display:none;">↑ 0%</div>
+                </div>
+                <div class="kpi-value">
+                    <span class="currency">NT$</span>
+                    <span class="number" id="kpi1-value">0</span>
+                </div>
+                <div class="kpi-footer">
+                    <div class="kpi-subtext" id="kpi1-subtext">新客貢獻: $0</div>
+                </div>
+            </div>
+            
+            <div class="kpi-card glass secondary-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-title" id="kpi2-title">毛利目標達成率 (建置中)</div>
+                </div>
+                <div class="kpi-value">
+                    <span class="number" id="kpi2-value">--%</span>
+                </div>
+                <div class="progress-bg"><div class="progress-fill" id="kpi2-bar" style="width: 0%;"></div></div>
+                <div class="kpi-footer" style="margin-top: 0.5rem;">
+                    <div class="kpi-subtext" id="kpi2-subtext">預算模組後續開放</div>
+                </div>
+            </div>
+            
+            <div class="kpi-card glass neutral-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-title" id="kpi3-title">前五大客戶集中度</div>
+                    <div class="kpi-trend down warn" id="kpi3-trend" style="display:none;">⚠️ 過度集中</div>
+                </div>
+                <div class="kpi-value">
+                    <span class="number" id="kpi3-value">0%</span>
+                </div>
+                <div class="kpi-footer">
+                    <div class="kpi-subtext" id="kpi3-subtext">靜止流失客戶: 0 家</div>
+                </div>
+            </div>
+
+            <div class="kpi-card glass neutral-kpi">
+                <div class="kpi-header">
+                    <div class="kpi-title" id="kpi4-title">低毛利異常警示數</div>
+                </div>
+                <div class="kpi-value">
+                    <span class="number" id="kpi4-value">0</span>
+                    <span class="currency" style="font-size: 1rem; align-self: flex-end; margin-bottom: 0.35rem;">家</span>
+                </div>
+                <div class="kpi-footer">
+                    <div class="kpi-subtext" id="kpi4-subtext">毛利率 < 10% 客戶</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Dashboard: 60/40 Split Layout -->
+        <div class="dashboard-main-grid" id="advanced-charts-container">
+            <!-- Left Column: 60% (Sales & Product & Channel) -->
+            <div class="col-card-stack">
+                <div class="chart-card glass">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                        <h3 id="chart3-title" style="margin-bottom: 0;">每月營收趨勢 vs 業務排名</h3>
+                    </div>
+                    <!-- 年度模式主圖 (趨勢) -->
+                    <div class="chart-wrapper" id="trend-chart-wrapper">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                    <!-- 單月模式主圖 (業務排名) -->
+                    <div class="chart-wrapper hidden" id="sales-chart-wrapper">
+                        <canvas id="salesChart"></canvas>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;" class="sub-charts-grid">
+                    <div class="chart-card glass">
+                        <h3 id="chart2-title">產品類別比例</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="productChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="chart-card glass">
+                        <h3 id="chart5-title">銷售渠道比例</h3>
+                        <div class="chart-wrapper">
+                            <canvas id="channelChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: 40% (Top 5 Concentration) -->
+            <div class="col-card-stack" id="comp-wrapper-container">
+                <div class="chart-card glass">
+                    <h3 id="chart-comp-title">前五大客戶營收佔比</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="compositionChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card glass">
+                    <h3 id="chart4-title">前五大客戶貢獻金額</h3>
+                    <div class="chart-wrapper">
+                        <canvas id="topClientsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="table-card glass">
+            <div class="table-header">
+                <h3 id="table-title">客戶業績詳細清單 (依營收排序)</h3>
+                <button class="export-btn" id="export-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    匯出 CSV
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table id="customersData">
+                    <thead>
+                        <tr>
+                            <th id="th-period">年度/月份</th>
+                            <th>客戶名稱</th>
+                            <th>負責業務</th>
+                            <th class="no-wrap">產品 / 渠道</th>
+                            <th id="th-revenue" class="sortable" onclick="handleTableSort('val')">本月實績</th>
+                            <th id="th-pct" class="sortable" onclick="handleTableSort('pct')">佔比 %</th>
+                            <th>績效標籤</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Rows rendered via JS -->
+                        <tr><td colspan="6" class="empty-state">請上傳 Excel 來檢視資料</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    
+    <script>
+// Global State
+let allData = []; // Store raw parsed data
+let currentSelectedYear = 'all';
+let currentSelectedMonth = 'all'; // 'all' or specific month string
+let processedData = null;
+let currentMode = 'revenue'; // 'revenue' or 'profit'
+
+// Chart Instances
+let salesChart = null;
+let productChart = null;
+let channelChart = null;
+let trendChart = null;
+let topClientsChart = null;
+let compChart = null;
+
+let currentSortCol = 'val'; // 'val' or 'pct'
+let currentSortDir = 'desc'; // 'asc' or 'desc'
+
+// DOM Elements
+const uploadInput = document.getElementById('excel-upload');
+const toggleInput = document.getElementById('metric-toggle');
+const labelRevenue = document.getElementById('label-revenue');
+const labelProfit = document.getElementById('label-profit');
+const kpi1Value = document.getElementById('kpi1-value');
+const kpi2Value = document.getElementById('kpi2-value');
+const kpi3Value = document.getElementById('kpi3-value');
+const kpi4Value = document.getElementById('kpi4-value');
+const kpi1Title = document.getElementById('kpi1-title');
+const kpi2Title = document.getElementById('kpi2-title');
+const kpi3Title = document.getElementById('kpi3-title');
+const kpi4Title = document.getElementById('kpi4-title');
+const kpi1Trend = document.getElementById('kpi1-trend');
+const kpi3Trend = document.getElementById('kpi3-trend');
+const kpi1Subtext = document.getElementById('kpi1-subtext');
+const kpi2Subtext = document.getElementById('kpi2-subtext');
+const kpi3Subtext = document.getElementById('kpi3-subtext');
+const kpi4Subtext = document.getElementById('kpi4-subtext');
+const tableBody = document.getElementById('table-body');
+const exportBtn = document.getElementById('export-btn');
+const monthDropdown = document.getElementById('month-dropdown');
+const yearDropdown = document.getElementById('year-dropdown');
+const dashboardTitle = document.getElementById('dashboard-title');
+const chart3Title = document.getElementById('chart3-title');
+const trendWrapper = document.getElementById('trend-chart-wrapper');
+const salesWrapper = document.getElementById('sales-chart-wrapper');
+
+// --- Initialization & Event Listeners ---
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Metric Toggle Listener (Revenue vs Profit)
+    toggleInput.addEventListener('change', (e) => {
+        currentMode = e.target.checked ? 'profit' : 'revenue';
+        if(currentMode === 'profit') {
+            labelProfit.classList.add('active');
+            labelRevenue.classList.remove('active');
+        } else {
+            labelRevenue.classList.add('active');
+            labelProfit.classList.remove('active');
+        }
+        if (processedData) updateDashboard();
+    });
+
+    // 2. Setup Excel Upload
+    uploadInput.addEventListener('change', handleFileUpload);
+    
+    // 3. Export CSV
+    exportBtn.addEventListener('click', exportToCSV);
+
+    // 4. Year & Month Dropdown Change
+    yearDropdown.addEventListener('change', (e) => {
+        currentSelectedYear = e.target.value;
+        currentSelectedMonth = 'all';
+        populateMonthSelector();
+        monthDropdown.value = 'all';
+        updateDynamicTitle();
+        processData();
+        updateDashboard();
+    });
+
+    monthDropdown.addEventListener('change', (e) => {
+        currentSelectedMonth = e.target.value;
+        updateDynamicTitle();
+        processData();
+        updateDashboard();
+    });
+    
+    // Initialize empty charts
+    initCharts();
+});
+
+// --- File Handling & ETL Logic (Client-Side) ---
+function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+        
+        allData = jsonData.map(row => {
+            let parsedYear = "未知";
+            if (row["年度"]) {
+                let yStr = String(row["年度"]).trim();
+                let yNum = parseInt(yStr, 10);
+                if (!isNaN(yNum) && yNum < 1900) {
+                    parsedYear = String(yNum + 1911);
+                } else if (!isNaN(yNum)) {
+                    parsedYear = String(yNum);
+                } else {
+                    parsedYear = yStr;
+                }
+            }
+            
+            // 解析月份
+            let monthLabel = "未知月份";
+            if (row["月份"]) {
+                monthLabel = parsedYear !== "未知" 
+                    ? `${parsedYear}年${String(row["月份"]).padStart(2, '0')}月`
+                    : `2026年${String(row["月份"]).padStart(2, '0')}月`;
+            } else if (row["開立日期"]) {
+                const dateParts = new Date(row["開立日期"]);
+                if (!isNaN(dateParts)) {
+                    const yInfo = dateParts.getFullYear();
+                    monthLabel = `${yInfo}年${String(dateParts.getMonth() + 1).padStart(2, '0')}月`;
+                    parsedYear = String(yInfo);
+                }
+            }
+            
+            return {
+                month: monthLabel,
+                year: parsedYear,
+                channel: row["經銷"] ? String(row["經銷"]).trim() : "未知",
+                clientName: row["公司名"] || "未知",
+                salesRep: row["業務"] || "未知",
+                category: row["性質"] || "未知",
+                billType: row["類別"] ? String(row["類別"]).toUpperCase().trim() : "未標註",
+                revenue: parseFloat(row["未稅"]) || 0,
+                profit: parseFloat(row["毛利"]) || 0,
+            };
+        });
+        
+        populateYearSelector();
+        populateMonthSelector();
+        
+        // 預設選擇全年度，或是最新的一個月份
+        const monthOpts = Array.from(monthDropdown.options);
+        if (monthOpts.length > 1) { 
+            currentSelectedMonth = monthOpts[monthOpts.length-1].value;
+            const latestData = allData.find(d => d.month === currentSelectedMonth);
+            if (latestData && latestData.year !== "未知") {
+                currentSelectedYear = latestData.year;
+                yearDropdown.value = currentSelectedYear;
+                populateMonthSelector(); // re-populate for this specific year
+                monthDropdown.value = currentSelectedMonth;
+            } else {
+                monthDropdown.value = currentSelectedMonth;
+            }
+        } else {
+            currentSelectedMonth = 'all';
+            currentSelectedYear = 'all';
+            monthDropdown.value = 'all';
+            yearDropdown.value = 'all';
+        }
+
+        updateDynamicTitle();
+        processData();
+        updateDashboard();
+        
+        // 清空 input value 使得下次上傳同一份檔案也能觸發 change 事件
+        uploadInput.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function populateYearSelector() {
+    const uniqueYears = [...new Set(allData.map(d => d.year).filter(y => y !== "未知"))].sort();
+    yearDropdown.innerHTML = '<option value="all">所有年度</option>';
+    uniqueYears.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = `${y}年度`;
+        yearDropdown.appendChild(opt);
+    });
+}
+
+function populateMonthSelector() {
+    let filtered = currentSelectedYear === 'all' ? allData : allData.filter(d => d.year === currentSelectedYear);
+    const uniqueMonths = [...new Set(filtered.map(d => d.month))].sort();
+    monthDropdown.innerHTML = '<option value="all">全年度報表</option>';
+    uniqueMonths.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        // 移除前面的年份，只顯示月份，例如 "2026年03月" -> "03月"
+        opt.textContent = m.includes('年') ? m.substring(m.indexOf('年') + 1) : m; 
+        monthDropdown.appendChild(opt);
+    });
+}
+
+function updateDynamicTitle() {
+    if (currentSelectedMonth === 'all') {
+        const yStr = currentSelectedYear === 'all' ? '所有年度' : `${currentSelectedYear}年度`;
+        dashboardTitle.innerHTML = `${yStr}<br>業績分析報告`;
+    } else {
+        dashboardTitle.innerHTML = `${currentSelectedMonth}<br>業績分析報告`;
+    }
+}
+
+function processData() {
+    // 依據選單過濾資料
+    let filteredData = allData;
+    if (currentSelectedYear !== 'all') {
+        filteredData = filteredData.filter(d => d.year === currentSelectedYear);
+    }
+    if (currentSelectedMonth !== 'all') {
+        filteredData = filteredData.filter(d => d.month === currentSelectedMonth);
+    }
+
+    // 1. Calculate Monthly Summaries
+    const totalRevenue = filteredData.reduce((sum, item) => sum + item.revenue, 0);
+    const totalProfit = filteredData.reduce((sum, item) => sum + item.profit, 0);
+    const uniqueClients = new Set(filteredData.map(item => item.clientName)).size;
+    const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+    
+    // 2. Group by Sales Rep
+    const repMap = {};
+    filteredData.forEach(item => {
+        if(!repMap[item.salesRep]) repMap[item.salesRep] = { name: item.salesRep, revenue: 0, profit: 0, mrcVal: 0, oocVal: 0, mrcProfit: 0, oocProfit: 0 };
+        repMap[item.salesRep].revenue += item.revenue;
+        repMap[item.salesRep].profit += item.profit;
+        
+        if (item.billType === 'MRC') {
+            repMap[item.salesRep].mrcVal += item.revenue;
+            repMap[item.salesRep].mrcProfit += item.profit;
+        } else {
+            repMap[item.salesRep].oocVal += item.revenue;
+            repMap[item.salesRep].oocProfit += item.profit;
+        }
+    });
+
+    // 2.5 Calculate MoM Growth for Sales Reps
+    const sortedMonths = [...new Set(allData.map(d => d.month))].sort((a,b) => a.localeCompare(b));
+    let prevMonth = null;
+    let prevRepMap = {};
+    if (currentSelectedMonth !== 'all') {
+        const currIdx = sortedMonths.indexOf(currentSelectedMonth);
+        if (currIdx > 0) {
+            prevMonth = sortedMonths[currIdx - 1];
+            const prevData = allData.filter(d => d.month === prevMonth);
+            prevData.forEach(item => {
+                if(!prevRepMap[item.salesRep]) prevRepMap[item.salesRep] = { revenue: 0, profit: 0 };
+                prevRepMap[item.salesRep].revenue += item.revenue;
+                prevRepMap[item.salesRep].profit += item.profit;
+            });
+        }
+    }
+
+    const salesReps = Object.values(repMap).map(rep => {
+        const metric = currentMode;
+        const prevRep = prevRepMap[rep.name];
+        if (prevRep && prevRep[metric] > 0) {
+            rep.growth = ((rep[metric] - prevRep[metric]) / prevRep[metric]) * 100;
+        } else {
+            rep.growth = null; // N/A
+        }
+        return rep;
+    }).sort((a,b) => b.revenue - a.revenue);
+
+    // 3. Group by Product Category & Channel
+    const prodMap = {};
+    const channelMap = {};
+    filteredData.forEach(item => {
+        if(!prodMap[item.category]) prodMap[item.category] = { label: item.category, revenue: 0, profit: 0 };
+        prodMap[item.category].revenue += item.revenue;
+        prodMap[item.category].profit += item.profit;
+
+        if(!channelMap[item.channel]) channelMap[item.channel] = { label: item.channel, revenue: 0, profit: 0 };
+        channelMap[item.channel].revenue += item.revenue;
+        channelMap[item.channel].profit += item.profit;
+    });
+    const products = Object.values(prodMap).sort((a,b) => b.revenue - a.revenue);
+    const channels = Object.values(channelMap).sort((a,b) => b.revenue - a.revenue);
+
+    // 3.5. Group previous data for MoM comparison
+    let prevData = [];
+    if (prevMonth !== null) {
+        prevData = allData.filter(d => d.month === prevMonth);
+    }
+    const prevCustMap = {};
+    let prevTotalRevenue = 0;
+    let prevTotalProfit = 0;
+    prevData.forEach(item => {
+        prevCustMap[item.clientName] = (prevCustMap[item.clientName] || 0) + item.revenue;
+        prevTotalRevenue += item.revenue;
+        prevTotalProfit += item.profit;
+    });
+
+    // 4. Group by Customer (For Table & Top Concentration)
+    const custMap = {};
+    filteredData.forEach(item => {
+        const key = item.clientName;
+        if(!custMap[key]) {
+            custMap[key] = {
+                clientName: item.clientName,
+                salesRep: item.salesRep, 
+                category: item.category,
+                channel: item.channel,
+                year: item.year,
+                month: item.month,
+                totalRevenue: 0,
+                totalProfit: 0,
+                mrcVal: 0, oocVal: 0, mrcProfit: 0, oocProfit: 0,
+                products: {}
+            };
+        }
+        custMap[key].totalRevenue += item.revenue;
+        custMap[key].totalProfit += item.profit;
+        
+        const prod = item.category || '未分類';
+        if (!custMap[key].products[prod]) custMap[key].products[prod] = { revenue: 0, profit: 0 };
+        custMap[key].products[prod].revenue += item.revenue;
+        custMap[key].products[prod].profit += item.profit;
+        
+        if (item.billType === 'MRC') {
+            custMap[key].mrcVal += item.revenue;
+            custMap[key].mrcProfit += item.profit;
+        } else {
+            custMap[key].oocVal += item.revenue;
+            custMap[key].oocProfit += item.profit;
+        }
+    });
+
+    let lostClientsCount = 0;
+    if (currentSelectedMonth !== 'all') {
+        Object.keys(prevCustMap).forEach(prevClient => {
+            if (!custMap[prevClient]) lostClientsCount++;
+        });
+    }
+
+    let newClientRevenue = 0;
+    let newClientProfit = 0;
+    let lowMarginCount = 0;
+
+    let customers = Object.values(custMap).map(c => {
+        c.marginPct = c.totalRevenue > 0 ? (c.totalProfit / c.totalRevenue) * 100 : 0;
+        
+        if (c.marginPct > 0 && c.marginPct < 10) lowMarginCount++;
+
+        if (currentSelectedMonth === 'all') {
+            c.tag = "年度彙總";
+            c.tagClass = "tag-stable";
+            c.growthStr = "-";
+            c.growthColor = "#6b7280";
+        } else {
+            const prevRev = prevCustMap[c.clientName] || 0;
+            if (prevRev === 0) {
+                c.tag = "新進客戶";
+                c.tagClass = "tag-potential";
+                c.growthStr = "↑ 本月新單";
+                c.growthColor = "#10b981";
+                newClientRevenue += c.totalRevenue;
+                newClientProfit += c.totalProfit;
+            } else {
+                const growthRate = ((c.totalRevenue - prevRev) / prevRev) * 100;
+                const formattedGrowth = Math.abs(growthRate).toFixed(1) + "%";
+                if (growthRate >= 10) {
+                    c.tag = "強勁成長"; c.tagClass = "tag-stable"; c.growthStr = "↑ " + formattedGrowth; c.growthColor = "#10b981";
+                } else if (growthRate > 0) {
+                    c.tag = "穩定維持"; c.tagClass = "tag-potential"; c.growthStr = "↑ " + formattedGrowth; c.growthColor = "#10b981";
+                } else if (growthRate === 0) {
+                    c.tag = "持平"; c.tagClass = "tag-potential"; c.growthStr = "- 0.0%"; c.growthColor = "#6b7280";
+                } else {
+                    c.tag = "預警衰退"; c.tagClass = "tag-warn"; c.growthStr = "↓ " + formattedGrowth; c.growthColor = "#ef4444";
+                }
+            }
+        }
+        return c;
+    });
+
+    // Calculate Concentration & Sorting
+    const sortBy = currentMode === 'revenue' ? 'totalRevenue' : 'totalProfit';
+    customers.sort((a,b) => b[sortBy] - a[sortBy]);
+
+    const totalValForCalc = currentMode === 'revenue' ? totalRevenue : totalProfit;
+    let cumulativePct = 0;
+    
+    customers = customers.map((c, index) => {
+        const val = c[sortBy];
+        const pct = totalValForCalc > 0 ? (val / totalValForCalc) * 100 : 0;
+        cumulativePct += pct;
+        c.pctOfTotal = pct;
+        c.cumulativePct = cumulativePct;
+        c.rankGroup = index < 5 ? 'Top5' : (index < 20 ? 'Rank6_20' : 'Other');
+        c.isTop5 = index < 5;
+        return c;
+    });
+
+    const top5Total = customers.filter(c => c.rankGroup === 'Top5').reduce((sum, c) => sum + c[sortBy], 0);
+    const midTotal = customers.filter(c => c.rankGroup === 'Rank6_20').reduce((sum, c) => sum + c[sortBy], 0);
+    const otherTotal = customers.filter(c => c.rankGroup === 'Other').reduce((sum, c) => sum + c[sortBy], 0);
+
+    // 5. Monthly Trend Aggregation
+    const trendMap = {};
+    const trendSource = currentSelectedYear === 'all' ? allData : allData.filter(item => item.year === currentSelectedYear);
+    trendSource.forEach(item => {
+        if(!trendMap[item.month]) trendMap[item.month] = { month: item.month, revenue: 0, profit: 0 };
+        trendMap[item.month].revenue += item.revenue;
+        trendMap[item.month].profit += item.profit;
+    });
+    const monthlyTrends = Object.values(trendMap).sort((a,b) => a.month.localeCompare(b.month));
+
+    // 6. Composition Data (MRC vs OOC) 
+    const mrcTotal = filteredData.filter(d => d.billType === 'MRC').reduce((sum, d) => sum + d.revenue, 0);
+    const oocTotal = filteredData.filter(d => d.billType !== 'MRC').reduce((sum, d) => sum + d.revenue, 0);
+    const mrcProfit = filteredData.filter(d => d.billType === 'MRC').reduce((sum, d) => sum + d.profit, 0);
+    const oocProfit = filteredData.filter(d => d.billType !== 'MRC').reduce((sum, d) => sum + d.profit, 0);
+
+    processedData = {
+        summary: { totalRevenue, totalProfit, prevTotalRevenue, prevTotalProfit, uniqueClients, avgMargin, top5Total, midTotal, otherTotal, lowMarginCount, newClientRevenue, newClientProfit, lostClientsCount },
+        salesReps,
+        products,
+        channels,
+        customers,
+        monthlyTrends,
+        composition: { mrcTotal, oocTotal, mrcProfit, oocProfit }
+    };
+}
+
+// --- UI Updates ---
+function formatCurrency(num) {
+    return num.toLocaleString('en-US');
+}
+
+function updateDashboard() {
+    if(!processedData) return;
+    const { summary, salesReps, products, channels, customers, monthlyTrends } = processedData;
+
+    // 1. Update KPIs
+    if(currentMode === 'revenue') {
+        kpi1Title.textContent = "本月總營收";
+        kpi1Value.textContent = formatCurrency(Math.round(summary.totalRevenue));
+        kpi1Subtext.textContent = "新客貢獻: $" + formatCurrency(Math.round(summary.newClientRevenue));
+    } else {
+        kpi1Title.textContent = "本月總毛利";
+        kpi1Value.textContent = formatCurrency(Math.round(summary.totalProfit));
+        kpi1Subtext.textContent = "新客貢獻: $" + formatCurrency(Math.round(summary.newClientProfit));
+    }
+    
+    // Growth indicator for KPI 1
+    const modeTotal = currentMode === 'revenue' ? summary.totalRevenue : summary.totalProfit;
+    const prevModeTotal = currentMode === 'revenue' ? summary.prevTotalRevenue : summary.prevTotalProfit;
+    
+    if (currentSelectedMonth !== 'all' && prevModeTotal > 0) {
+        const growth = ((modeTotal - prevModeTotal) / prevModeTotal) * 100;
+        kpi1Trend.style.display = 'block';
+        kpi1Trend.textContent = (growth >= 0 ? "↑ " : "↓ ") + Math.abs(growth).toFixed(1) + "%";
+        kpi1Trend.className = "kpi-trend " + (growth >= 0 ? "up" : "down");
+    } else {
+        kpi1Trend.style.display = 'none'; // 隱藏 (例如年度總覽時)
+    }
+
+    // KPI 2
+    // Static placeholder - wait for budget data
+
+    // KPI 3
+    const top5Pct = modeTotal > 0 ? (summary.top5Total / modeTotal) * 100 : 0;
+    kpi3Value.textContent = top5Pct.toFixed(1) + "%";
+    
+    if (top5Pct > 60) {
+        kpi3Trend.style.display = 'block';
+        kpi3Trend.textContent = "⚠️ 過度集中";
+        kpi3Trend.className = "kpi-trend warn";
+    } else {
+        kpi3Trend.style.display = 'none';
+        kpi3Trend.className = "kpi-trend down";
+    }
+    kpi3Subtext.textContent = `靜止流失客戶: ${summary.lostClientsCount} 家`;
+
+    // KPI 4
+    kpi4Value.textContent = summary.lowMarginCount;
+    kpi4Subtext.textContent = `毛利率 < 10% 客戶`;
+
+    // 2. Update Charts
+    if(currentSelectedMonth === 'all') {
+        chart3Title.textContent = "每月營收與毛利趨勢圖";
+        trendWrapper.classList.remove('hidden');
+        salesWrapper.classList.add('hidden');
+        updateTrendChart(monthlyTrends);
+        if (trendChart) trendChart.resize();
+    } else {
+        chart3Title.textContent = "業務人員業績排名";
+        trendWrapper.classList.add('hidden');
+        salesWrapper.classList.remove('hidden');
+        updateSalesChart(salesReps);
+        if (salesChart) salesChart.resize();
+    }
+
+    updateProductChart(products);
+    updateChannelChart(channels);
+    
+    // Setup Top 5
+    updateCompositionChart(customers);
+    updateTopClientsChart(customers.slice(0, 5));
+
+    // 3. Update Table
+    updateTable(customers);
+}
+
+function initCharts() {
+    Chart.register(ChartDataLabels);
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = '#4b5563';
+    
+    // Disable datalabels globally, only enable for specific charts
+    Chart.defaults.plugins.datalabels.display = false;
+
+    // Trend Chart (Bar)
+    const ctxTrend = document.getElementById('trendChart').getContext('2d');
+    trendChart = new Chart(ctxTrend, {
+        type: 'bar',
+        data: { labels: [], datasets: [] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, grid: { borderDash: [5, 5] } } },
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+
+    // Sales Rep Chart (Bar)
+    const ctxSales = document.getElementById('salesChart').getContext('2d');
+    salesChart = new Chart(ctxSales, {
+        type: 'bar',
+        data: { labels: [], datasets: [] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, grid: { borderDash: [5, 5] } } },
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+
+    // Composition Chart (Top 5 vs Others Donut)
+    const ctxComp = document.getElementById('compositionChart').getContext('2d');
+    compChart = new Chart(ctxComp, {
+        type: 'doughnut',
+        data: { labels: ['前五大客戶', '第 6~20 名', '其他客戶'], datasets: [] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: { 
+                legend: { position: 'bottom' },
+                datalabels: {
+                    display: true,
+                    color: '#fff',
+                    formatter: (value, context) => {
+                        const total = context.dataset.data.reduce((sum, v) => sum + v, 0);
+                        const pct = total > 0 ? Math.round(value / total * 100) : 0;
+                        return pct > 0 ? pct + '%' : '';
+                    },
+                    font: { weight: 'bold', size: 14 }
+                }
+            }
+        }
+    });
+    
+    // Products Chart
+    const ctxProd = document.getElementById('productChart').getContext('2d');
+    productChart = new Chart(ctxProd, {
+        type: 'doughnut',
+        data: { labels: [], datasets: [] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+
+    // Channels Chart
+    const ctxChannel = document.getElementById('channelChart').getContext('2d');
+    channelChart = new Chart(ctxChannel, {
+        type: 'doughnut',
+        data: { labels: [], datasets: [] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: { legend: { position: 'bottom' } }
+        }
+    });
+
+    // Top Clients Bar Chart (Phase 8: Concentration Amount)
+    const ctxTop = document.getElementById('topClientsChart').getContext('2d');
+    topClientsChart = new Chart(ctxTop, {
+        type: 'bar',
+        data: { labels: [], datasets: [] },
+        options: {
+            indexAxis: 'y', // Horizontal
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                x: { grid: { borderDash: [5, 5] }, stacked: false },
+                y: { grid: { drawOnChartArea: false }, stacked: false }
+            },
+            plugins: { 
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+function updateTrendChart(trendData) {
+    if(trendData.length === 0) return;
+    const labels = trendData.map(d => d.month.includes('年') ? d.month.split('年')[1] : d.month);
+    
+    // 啟用雙Y軸
+    if (!trendChart.options.scales.y1) {
+        trendChart.options.scales.y1 = { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } };
+    }
+
+    trendChart.data = {
+        labels: labels,
+        datasets: [
+            {
+                type: 'bar',
+                label: "月營收 (NT$)",
+                data: trendData.map(d => d.revenue),
+                backgroundColor: '#20b2aa',
+                borderRadius: 4,
+                yAxisID: 'y',
+                order: 2
+            },
+            {
+                type: 'line',
+                label: "月毛利 (NT$)",
+                data: trendData.map(d => d.profit),
+                borderColor: '#10b981',
+                backgroundColor: '#10b981',
+                borderWidth: 2, tension: 0.4, pointRadius: 4,
+                yAxisID: 'y1',
+                order: 1
+            }
+        ]
+    };
+    trendChart.update();
+}
+
+function updateCompositionChart(customersData) {
+    const metric = currentMode;
+    const sortBy = metric === 'revenue' ? 'totalRevenue' : 'totalProfit';
+    
+    document.getElementById('chart-comp-title').textContent = metric === 'revenue' ? '全體客戶營收占比' : '全體客戶毛利占比';
+    
+    const sorted = [...customersData].sort((a,b) => b[sortBy] - a[sortBy]);
+    const top5 = sorted.filter(c => c.rankGroup === 'Top5');
+    const midRange = sorted.filter(c => c.rankGroup === 'Rank6_20');
+    const others = sorted.filter(c => c.rankGroup === 'Other');
+
+    const top5Total = top5.reduce((sum, c) => sum + c[sortBy], 0);
+    const midTotal = midRange.reduce((sum, c) => sum + c[sortBy], 0);
+    const otherTotal = others.reduce((sum, c) => sum + c[sortBy], 0);
+
+    let labels = ['前五大客戶', '第 6~20 名', '其他客戶'];
+    let data = [top5Total, midTotal, otherTotal];
+    const palette = ['#20b2aa', '#3b82f6', '#9ca3af'];
+
+    compChart.data = {
+        labels: labels,
+        datasets: [
+            {
+                data: data,
+                backgroundColor: palette,
+                borderWidth: 1
+            }
+        ]
+    };
+
+    if (!compChart.options.plugins.tooltip) compChart.options.plugins.tooltip = {};
+    compChart.options.plugins.tooltip.callbacks = {
+        label: function(context) {
+            const label = context.label || '';
+            const value = context.parsed;
+            return `${label}: NT$ ${formatCurrency(Math.round(value))}`;
+        }
+    };
+    compChart.update();
+}
+
+function updateTopClientsChart(customersData) {
+    const metric = currentMode;
+    const sortBy = metric === 'revenue' ? 'totalRevenue' : 'totalProfit';
+    const sorted = [...customersData].sort((a,b) => b[sortBy] - a[sortBy]).slice(0, 5);
+    const labels = sorted.map(c => c.clientName);
+    const data = sorted.map(c => c[sortBy]);
+    const valueTypeLabel = metric === 'revenue' ? '營收金額 (NT$)' : '毛利金額 (NT$)';
+
+    topClientsChart.data = {
+        labels: labels,
+        datasets: [
+            {
+                label: `貢獻${valueTypeLabel}`,
+                data: data,
+                backgroundColor: '#f59e0b',
+                borderRadius: 4
+            }
+        ]
+    };
+    topClientsChart.update();
+}
+
+function updateSalesChart(repsData) {
+    const metric = currentMode;
+    const sorted = [...repsData].sort((a,b) => b[metric] - a[metric]).slice(0, 10);
+    
+    if (!salesChart.options.scales.x) salesChart.options.scales.x = {};
+    salesChart.options.scales.x.stacked = true;
+    if (!salesChart.options.scales.y) salesChart.options.scales.y = {};
+    salesChart.options.scales.y.stacked = true;
+
+    salesChart.data = {
+        labels: sorted.map(d => d.name),
+        datasets: [
+            {
+                type: 'bar',
+                label: `MRC ${metric === 'revenue' ? '營收' : '毛利'} (NT$)`,
+                data: sorted.map(d => metric === 'revenue' ? d.mrcVal : d.mrcProfit),
+                backgroundColor: '#20b2aa',
+                stack: 'Stack 0',
+                order: 2, yAxisID: 'y'
+            },
+            {
+                type: 'bar',
+                label: `OOC ${metric === 'revenue' ? '營收' : '毛利'} (NT$)`,
+                data: sorted.map(d => metric === 'revenue' ? d.oocVal : d.oocProfit),
+                backgroundColor: '#3b82f6',
+                stack: 'Stack 0',
+                order: 2, yAxisID: 'y'
+            },
+            {
+                type: 'line',
+                label: '月成長率 (%)',
+                data: sorted.map(d => d.growth),
+                borderColor: '#374151', backgroundColor: '#374151',
+                borderWidth: 2, tension: 0.4, pointRadius: 4,
+                order: 1, yAxisID: 'y1'
+            }
+        ]
+    };
+
+    if (!salesChart.options.plugins.tooltip) salesChart.options.plugins.tooltip = {};
+    salesChart.options.plugins.tooltip.callbacks = {
+        label: function(context) {
+            let label = context.dataset.label || '';
+            if (label) label += ': ';
+            if (context.parsed.y !== null) {
+                if (context.dataset.type === 'line') {
+                    label += context.parsed.y.toFixed(1) + '%';
+                } else {
+                    label += 'NT$ ' + formatCurrency(Math.round(context.parsed.y));
+                }
+            } else {
+                label += 'N/A';
+            }
+            return label;
+        }
+    };
+
+    salesChart.update();
+}
+
+function updateProductChart(prodData) {
+    const metric = currentMode;
+    const sorted = [...prodData].sort((a,b) => b[metric] - a[metric]);
+    const revColors = ['#20b2aa', '#3b82f6', '#f59e0b', '#374151', '#e5e7eb'];
+    const profitColors = ['#10b981', '#6366f1', '#f97316', '#4b5563', '#9ca3af'];
+    
+    const total = sorted.reduce((sum, d) => sum + d[metric], 0);
+
+    productChart.data = {
+        labels: sorted.map(d => d.label || d.category),
+        datasets: [{
+            data: sorted.map(d => d[metric]),
+            backgroundColor: metric === 'revenue' ? revColors : profitColors,
+            borderWidth: 0, hoverOffset: 4
+        }]
+    };
+    
+    productChart.options.plugins.legend.display = true;
+    productChart.options.layout = { padding: 0 };
+    productChart.options.plugins.datalabels = {
+        display: true,
+        color: '#fff',
+        formatter: (value, context) => {
+            const pct = total > 0 ? Math.round(value / total * 100) : 0;
+            return pct > 0 ? pct + '%' : '';
+        },
+        font: { size: 14, weight: 'bold' },
+        textAlign: 'center',
+        anchor: 'center',
+        align: 'center'
+    };
+    productChart.update();
+}
+
+function updateChannelChart(channelsData) {
+    const metric = currentMode;
+    const sorted = [...channelsData].sort((a,b) => b[metric] - a[metric]);
+    const revColors = ['#f43f5e', '#8b5cf6', '#14b8a6', '#f59e0b', '#64748b'];
+
+    const total = sorted.reduce((sum, d) => sum + d[metric], 0);
+
+    channelChart.data = {
+        labels: sorted.map(d => d.label),
+        datasets: [{
+            data: sorted.map(d => d[metric]),
+            backgroundColor: revColors,
+            borderWidth: 0, hoverOffset: 4
+        }]
+    };
+    
+    channelChart.options.plugins.datalabels = {
+        display: true,
+        color: '#fff',
+        formatter: (value, context) => {
+            const pct = total > 0 ? Math.round(value / total * 100) : 0;
+            return pct > 0 ? pct + '%' : '';
+        },
+        font: { size: 14, weight: 'bold' },
+        textAlign: 'center',
+        anchor: 'center',
+        align: 'center'
+    };
+    
+    channelChart.update();
+}
+
+function updateTable(customersData) {
+    if (!customersData || customersData.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state">請上傳 Excel 來檢視資料</td></tr>';
+        return;
+    }
+    tableBody.innerHTML = '';
+    const metric = currentMode;
+    const sortBy = metric === 'revenue' ? 'totalRevenue' : 'totalProfit';
+    
+    // Applying sort
+    let sorted = [...customersData];
+    sorted.sort((a, b) => {
+        let valA = currentSortCol === 'val' ? a[sortBy] : a.pctOfTotal;
+        let valB = currentSortCol === 'val' ? b[sortBy] : b.pctOfTotal;
+        return currentSortDir === 'desc' ? valB - valA : valA - valB;
+    });
+
+    document.getElementById('table-title').textContent = metric === 'revenue' ? '客戶業績詳細清單 (依營收排序)' : '客戶業績詳細清單 (依毛利排序)';
+
+    // Handle column visibility
+    const periodTh = document.getElementById('th-period');
+    if (currentSelectedMonth === 'all') {
+        periodTh.style.display = 'none';
+    } else {
+        periodTh.style.display = '';
+    }
+
+    const thRev = document.getElementById('th-revenue');
+    thRev.textContent = metric === 'revenue' ? '本月營收' : '本月毛利';
+    
+    // Update header classes for sorting icons
+    document.querySelectorAll('th.sortable').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+    });
+    const activeThId = currentSortCol === 'val' ? 'th-revenue' : 'th-pct';
+    document.getElementById(activeThId).classList.add(currentSortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+
+    sorted.forEach(row => {
+        const tr = document.createElement('tr');
+        if (row.marginPct > 0 && row.marginPct < 10) tr.style.backgroundColor = 'rgba(239, 68, 68, 0.05)';
+        else if (row.isTop5) tr.style.backgroundColor = 'rgba(245, 158, 11, 0.05)';
+        
+        const val = row[sortBy];
+        let pctStr = row.pctOfTotal.toFixed(1) + "%";
+        
+        let periodTd = `<td style="font-size: 0.85rem; color: #6b7280;">${row.year}<br>${row.month.includes('年') ? row.month.split('年')[1] : row.month}</td>`;
+        if (currentSelectedMonth === 'all') periodTd = "";
+
+        tr.innerHTML = `
+            ${periodTd}
+            <td style="font-weight: 500;">
+                ${row.clientName}
+                ${row.marginPct > 0 && row.marginPct < 10 ? '<br><span style="font-size:0.75rem;color:#ef4444;font-weight:bold;">⚠️ 低毛利警示</span>' : ''}
+                ${row.isTop5 ? '<br><span style="font-size:0.75rem;color:#f59e0b;font-weight:bold;">★ Top 5 客戶</span>' : ''}
+            </td>
+            <td>${row.salesRep}</td>
+            <td class="no-wrap">${row.category} / <small style="color:#6b7280">${row.channel}</small></td>
+            <td style="font-weight: 600;">NT$ ${formatCurrency(Math.round(val))}</td>
+            <td>${pctStr}</td>
+            <td>
+                <div style="margin-bottom:4px;"><span style="color: ${row.growthColor}; font-size:12px; font-weight:600;">${row.growthStr}</span></div>
+                <div><span class="status-tag ${row.tagClass}">${row.tag}</span></div>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    });
+}
+
+function handleTableSort(col) {
+    if (currentSortCol === col) {
+        currentSortDir = currentSortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+        currentSortCol = col;
+        currentSortDir = 'desc';
+    }
+    updateTable(processedData.customers);
+}
+
+function exportToCSV() {
+    if(!processedData || !processedData.customers) {
+        alert("請先上傳資料！");
+        return;
+    }
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "客戶名稱,負責業務,產品類別,期間營收,期間毛利,毛利率(%),績效標籤\n";
+    
+    processedData.customers.forEach(row => {
+        csvContent += `${row.clientName},${row.salesRep},${row.category},${row.totalRevenue},${row.totalProfit},${row.marginPct.toFixed(2)}%,${row.tag}\n`;
+    });
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const dlName = currentSelectedMonth === 'all' ? '全年度_summary_report.csv' : `${currentSelectedMonth}_summary_report.csv`;
+    link.setAttribute("download", dlName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+
+function exportStaticHtml() {
+    if (allData.length === 0) { alert('請先上傳資料！'); return; }
+    
+    // Create a copy of the document
+    const htmlClone = document.documentElement.cloneNode(true);
+    
+    // Remove the export button and upload controls
+    const exportBtn = htmlClone.querySelector('#export-html-btn');
+    if (exportBtn) exportBtn.style.display = 'none';
+    const uploadDiv = htmlClone.querySelector('.upload-wrapper');
+    if (uploadDiv) uploadDiv.style.display = 'none';
+
+    // Inject the saved data as a JSON script block at the top of the <head>
+    const dataScript = document.createElement('script');
+    dataScript.textContent = "window.__OFFLINE_DATA__ = " + JSON.stringify({
+        allData: allData,
+        selectedMonth: currentSelectedMonth
+    }) + ";";
+    htmlClone.querySelector('head').insertBefore(dataScript, htmlClone.querySelector('head').firstChild);
+
+    // Save as HTML file
+    const completeHtml = '<!DOCTYPE html>\n<html>\n' + htmlClone.innerHTML + '\n</html>';
+    const blob = new Blob([completeHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    let fallbackMonth = currentSelectedMonth === 'all' ? '全年度' : currentSelectedMonth;
+    link.download = `營運報告_${fallbackMonth}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Check if we are in an offline exported file
+    if (window.__OFFLINE_DATA__) {
+        console.log("Offline mode detected. Restoring data.");
+        allData = window.__OFFLINE_DATA__.allData;
+        currentSelectedMonth = window.__OFFLINE_DATA__.selectedMonth;
+        
+        populateMonthSelector();
+        monthDropdown.value = currentSelectedMonth;
+        updateDynamicTitle();
+        processData();
+        updateDashboard();
+        
+        // Hide upload UI parts just in case
+        if(uploadInput) uploadInput.parentElement.style.display = 'none';
+        const eBtn = document.getElementById('export-html-btn');
+        if (eBtn) eBtn.style.display = 'none';
+    }
+});
+
+</script>
+</body>
+</html>
