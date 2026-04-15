@@ -1314,7 +1314,7 @@ function initCharts() {
             responsive: true, maintainAspectRatio: false,
             cutout: '60%',
             plugins: { legend: { position: 'bottom' } }, // fallback
-            layout: { padding: 40 }
+            layout: { padding: { left: 60, right: 60, top: 50, bottom: 50 } }
         },
         plugins: [{
             id: 'callout-lines',
@@ -1458,7 +1458,7 @@ function updateCompositionChart(customersData) {
     };
 
     compChart.options.plugins.legend.display = false;
-    compChart.options.layout = { padding: 40 }; 
+    compChart.options.layout = { padding: { left: 60, right: 60, top: 50, bottom: 50 } }; 
     compChart.options.plugins.datalabels = {
         display: true,
         color: '#4b5563',
@@ -1598,7 +1598,7 @@ function updateProductChart(prodData) {
     };
     
     productChart.options.plugins.legend.display = false;
-    productChart.options.layout = { padding: 40 }; 
+    productChart.options.layout = { padding: { left: 60, right: 60, top: 50, bottom: 50 } }; 
     productChart.options.plugins.datalabels = {
         display: true,
         color: '#4b5563',
