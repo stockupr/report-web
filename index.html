@@ -561,6 +561,13 @@ tbody tr:hover {
     animation: fadeIn 0.4s ease-out forwards;
 }
 
+/* sub-charts-grid 預設兩欄 */
+.sub-charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -573,9 +580,17 @@ tbody tr:hover {
     body { padding: 1rem; }
     .kpi-grid { grid-template-columns: 1fr; }
     .dashboard-header { flex-direction: column; gap: 1rem; align-items: stretch;}
-    .header-left {text-align: center;}
-    .header-right { width: 100%; align-items: center; justify-content: center; flex-direction: column; gap: 1rem;}
-    .chart-wrapper { height: 300px; }
+    .header-left { text-align: center; }
+    .header-right {
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .sub-charts-grid { grid-template-columns: 1fr; }
+    .chart-wrapper { height: 280px; }
     .kpi-card .number { font-size: 2rem; }
     #dashboard-title { font-size: 1.25rem; text-align: center; }
 }
@@ -712,7 +727,7 @@ tbody tr:hover {
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;" class="sub-charts-grid">
+                <div class="sub-charts-grid">
                     <div class="chart-card glass">
                         <h3 id="chart2-title">產品類別比例</h3>
                         <div class="chart-wrapper">
@@ -1101,11 +1116,13 @@ function processData() {
     if (prevMonth !== null) {
         prevData = allData.filter(d => d.month === prevMonth);
     }
-    const prevCustMap = {};
+    const prevCustMap = {};        // 上月：各客戶「營收」
+    const prevCustProfitMap = {};  // 上月：各客戶「毛利」（修正：毛利模式下需要這個）
     let prevTotalRevenue = 0;
     let prevTotalProfit = 0;
     prevData.forEach(item => {
         prevCustMap[item.clientName] = (prevCustMap[item.clientName] || 0) + item.revenue;
+        prevCustProfitMap[item.clientName] = (prevCustProfitMap[item.clientName] || 0) + item.profit;
         prevTotalRevenue += item.revenue;
         prevTotalProfit += item.profit;
     });
@@ -1167,18 +1184,46 @@ function processData() {
             c.growthStr = "-";
             c.growthColor = "#6b7280";
         } else {
-            const prevRev = prevCustMap[c.clientName] || 0;
-            if (prevRev === 0) {
+            const prevRev    = prevCustMap[c.clientName] || 0;        // 上月營收
+            const prevProfit = prevCustProfitMap[c.clientName];        // 上月毛利（undefined 表示上月不存在）
+            const isNewClient = prevRev === 0;                         // 上月是否無此客戶
+
+            // ── 依模式決定本月 / 上月比較值 ──
+            const curMetric  = currentMode === 'revenue' ? c.totalRevenue : c.totalProfit;
+            const prevMetric = currentMode === 'revenue' ? prevRev : (prevProfit !== undefined ? prevProfit : 0);
+
+            // ── 特殊：負毛利客戶，不管是否新進，優先顯示「毛利異常」 ──
+            if (c.totalProfit < 0) {
+                c.tag = "毛利異常";
+                c.tagClass = "tag-warn";
+                c.growthStr = "⚠️ 負毛利";
+                c.growthColor = "#ef4444";
+                // 若同時是新進客戶，仍計入新客貢獻（負值亦記錄）
+                if (isNewClient) {
+                    newClientRevenue += c.totalRevenue;
+                    newClientProfit  += c.totalProfit;
+                }
+            }
+            // ── 上月無此客戶（新進客戶），且毛利非負 ──
+            else if (isNewClient) {
                 c.tag = "新進客戶";
                 c.tagClass = "tag-potential";
                 c.growthStr = "↑ 本月新單";
                 c.growthColor = "#10b981";
                 newClientRevenue += c.totalRevenue;
-                newClientProfit += c.totalProfit;
-            } else {
-                const growthRate = ((c.totalRevenue - prevRev) / prevRev) * 100;
-                const formattedGrowth = Math.abs(growthRate).toFixed(1) + "%";
-                if (growthRate >= 10) {
+                newClientProfit  += c.totalProfit;
+            }
+            // ── 既有客戶：依模式成長率判斷 ──
+            else {
+                let growthRate;
+                if (prevMetric === 0) {
+                    // 上月基準為 0（例如上月毛利剛好是 0），無法計算成長率
+                    growthRate = curMetric > 0 ? Infinity : (curMetric < 0 ? -Infinity : 0);
+                } else {
+                    growthRate = ((curMetric - prevMetric) / Math.abs(prevMetric)) * 100;
+                }
+                const formattedGrowth = isFinite(growthRate) ? Math.abs(growthRate).toFixed(1) + "%" : "N/A";
+                if (!isFinite(growthRate) || growthRate >= 10) {
                     c.tag = "強勁成長"; c.tagClass = "tag-stable"; c.growthStr = "↑ " + formattedGrowth; c.growthColor = "#10b981";
                 } else if (growthRate > 0) {
                     c.tag = "穩定維持"; c.tagClass = "tag-potential"; c.growthStr = "↑ " + formattedGrowth; c.growthColor = "#10b981";
@@ -1755,7 +1800,12 @@ function updateProductChart(prodData) {
     };
 
     // 將 padding 與 datalabels 設定同步給 productChart（引導線由 afterDraw 畫）
-    productChart.options.layout = { padding: { left: 90, right: 90, top: 55, bottom: 55 } };
+    // 動態計算 padding：依容器寬度決定引導線空間，避免小螢幕截斷
+    const prodCanvasEl = document.getElementById('productChart');
+    const prodContainerW = prodCanvasEl ? prodCanvasEl.parentElement.clientWidth : 300;
+    const dynHPad = prodContainerW < 320 ? 45 : (prodContainerW < 480 ? 65 : 90);
+    const dynVPad = prodContainerW < 320 ? 35 : 55;
+    productChart.options.layout = { padding: { left: dynHPad, right: dynHPad, top: dynVPad, bottom: dynVPad } };
     productChart.options.plugins.legend.display = false;
     productChart.options.plugins.datalabels = { display: false };
 
