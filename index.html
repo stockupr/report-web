@@ -1461,6 +1461,10 @@ function initCharts() {
                 const total = (dataset.data || []).reduce((s, v) => s + (v || 0), 0);
                 if (total === 0) return;
 
+                // 取得 canvas 實際像素寬度（考慮 devicePixelRatio）
+                const dpr = window.devicePixelRatio || 1;
+                const canvasW = chart.canvas.width / dpr;
+
                 chart.data.labels.forEach((label, i) => {
                     const arc = meta.data[i];
                     if (!arc || arc.hidden) return;
@@ -1477,16 +1481,34 @@ function initCharts() {
                     const cy = arc.y;
                     const isRight = cosA >= 0;
 
-                    // 引導線對數
-                    const lineOut = 22;   // 從圈外縼延伸的長度
-                    const tickLen = 20;   // 水平勾緩長度
-                    const gap = 5;        // 文字距勾緩的間距
+                    const lineOut = 14;  // 縮短從圈外延伸的長度
+                    const gap = 5;       // 文字距勾緩的間距
 
                     const edgeX = cx + cosA * r;
                     const edgeY = cy + sinA * r;
                     const outX  = cx + cosA * (r + lineOut);
                     const outY  = cy + sinA * (r + lineOut);
+
+                    // 動態計算 tickLen：保留足夠空間給文字
+                    // canvas 右邊 → outX 到右邊的可用距離；左邊 → outX 到左邊的可用距離
+                    const spaceToEdge = isRight ? (canvasW - outX - gap - 2) : (outX - gap - 2);
+                    const maxTextW = Math.max(15, spaceToEdge * 0.55); // 55% 留給文字
+                    const tickLen = Math.max(6, Math.min(18, spaceToEdge - maxTextW - gap));
                     const tickX = outX + (isRight ? tickLen : -tickLen);
+
+                    // 計算可用文字最大寬度（剩下空間）
+                    const textMaxW = spaceToEdge - tickLen;
+
+                    // 自動截斷超長標籤（加 …）
+                    ctx.font = '600 12px Inter, -apple-system, sans-serif';
+                    let displayLabel = label;
+                    if (ctx.measureText(label).width > textMaxW) {
+                        let t = label;
+                        while (t.length > 1 && ctx.measureText(t + '…').width > textMaxW) {
+                            t = t.slice(0, -1);
+                        }
+                        displayLabel = t + '…';
+                    }
 
                     // 畫引導線
                     ctx.save();
@@ -1499,13 +1521,13 @@ function initCharts() {
                     ctx.lineJoin = 'round';
                     ctx.stroke();
 
-                    // 畫標籤名稱（在勾緩尾端外側）
+                    // 畫標籤名稱（動態截斷版）
                     const textX = tickX + (isRight ? gap : -gap);
                     ctx.font = '600 12px Inter, -apple-system, sans-serif';
                     ctx.fillStyle = '#1f2937';
                     ctx.textAlign = isRight ? 'left' : 'right';
                     ctx.textBaseline = 'bottom';
-                    ctx.fillText(label, textX, outY - 1);
+                    ctx.fillText(displayLabel, textX, outY - 1);
 
                     // 畫百分比（名稱下方）
                     ctx.font = '500 11px Inter, -apple-system, sans-serif';
