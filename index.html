@@ -378,6 +378,7 @@ input:checked + .slider:before {
     position: relative;
     height: 350px;
     width: 100%;
+    overflow: visible; /* 允許 callout 引導線標籤延伸至容器外 */
 }
 
 /* Hidden utility */
@@ -1192,17 +1193,13 @@ function processData() {
             const curMetric  = currentMode === 'revenue' ? c.totalRevenue : c.totalProfit;
             const prevMetric = currentMode === 'revenue' ? prevRev : (prevProfit !== undefined ? prevProfit : 0);
 
-            // ── 特殊：負毛利客戶，不管是否新進，優先顯示「毛利異常」 ──
+            // ── 特殊：負毛利客戶，不管是否新進，優先顯示「毛利異常」。「毛利異常」不計入新客貢獻 ──
             if (c.totalProfit < 0) {
                 c.tag = "毛利異常";
                 c.tagClass = "tag-warn";
                 c.growthStr = "⚠️ 負毛利";
                 c.growthColor = "#ef4444";
-                // 若同時是新進客戶，仍計入新客貢獻（負值亦記錄）
-                if (isNewClient) {
-                    newClientRevenue += c.totalRevenue;
-                    newClientProfit  += c.totalProfit;
-                }
+                // 毛利為負即表示有問題，不計入新客貢獻（避免 KPI「新客貢獻」出現負值卻找不到對應客戶）
             }
             // ── 上月無此客戶（新進客戶），且毛利非負 ──
             else if (isNewClient) {
