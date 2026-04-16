@@ -614,6 +614,10 @@ tbody tr:hover {
                         上傳 Excel 更新
                     </label>
                 </div>
+                <button class="upload-btn" style="background-color: #f0fdf4; color: #16a34a; border-color: #86efac;" onclick="downloadSampleExcel()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                    下載範例 Excel
+                </button>
                 <button id="export-html-btn" class="upload-btn" style="background-color: var(--accent); color: white; border-color: var(--accent);" onclick="exportStaticHtml()">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     匯出主管報表
@@ -1966,6 +1970,9 @@ function exportStaticHtml() {
     if (exportBtn) exportBtn.style.display = 'none';
     const uploadDiv = htmlClone.querySelector('.upload-wrapper');
     if (uploadDiv) uploadDiv.style.display = 'none';
+    // 隱藏「下載範例 Excel」按鈕（以 onclick 屬性定位）
+    const sampleBtn = htmlClone.querySelector('button[onclick="downloadSampleExcel()"]');
+    if (sampleBtn) sampleBtn.style.display = 'none';
 
     // Inject the saved data as a JSON script block at the top of the <head>
     const dataScript = document.createElement('script');
@@ -2008,6 +2015,68 @@ document.addEventListener('DOMContentLoaded', () => {
         if (eBtn) eBtn.style.display = 'none';
     }
 });
+
+function downloadSampleExcel() {
+    const clients = [
+        { name: '台灣雲端科技股份有限公司',   rep: 'Alice', cat: 'AWS',   ch: '直客',   mgn: 0.28, rev: 580000, bill: 'MRC' },
+        { name: '宏居數位有限公司',           rep: 'Alice', cat: 'GCP',   ch: '代理商', mgn: 0.22, rev: 150000, bill: 'OOC' },
+        { name: '星賣造景有限公司',           rep: 'Brian', cat: 'Azure', ch: '直客',   mgn: 0.18, rev: 320000, bill: 'MRC' },
+        { name: '剛勁資訊株式會社',           rep: 'Brian', cat: 'AWS',   ch: '伙伴',   mgn: 0.31, rev: 210000, bill: 'MRC' },
+        { name: '發途高技株式會社',           rep: 'Cathy', cat: 'GCP',   ch: '直客',   mgn: 0.25, rev: 480000, bill: 'MRC' },
+        { name: '新先生科技有限公司',         rep: 'Cathy', cat: 'AWS',   ch: '伙伴',   mgn: 0.07, rev: 130000, bill: 'OOC' },
+        { name: '屬龍智慧株式會社',           rep: 'David', cat: 'Azure', ch: '代理商', mgn: 0.33, rev: 260000, bill: 'OOC' },
+        { name: '景記篙圓有限公司',           rep: 'David', cat: 'GCP',   ch: '直客',   mgn: 0.19, rev: 190000, bill: 'MRC' },
+        { name: '幸福企業金融株式會社',       rep: 'Eva',   cat: 'AWS',   ch: '直客',   mgn: 0.27, rev: 420000, bill: 'MRC' },
+        { name: '年輪台灣有限公司',           rep: 'Eva',   cat: 'Azure', ch: '伙伴',   mgn: 0.14, rev: 170000, bill: 'OOC' },
+        { name: '咖啡學院連鎖株式會社',       rep: 'Alice', cat: 'GCP',   ch: '代理商', mgn: 0.35, rev: 95000,  bill: 'MRC' },
+        { name: '明日工業有限公司',           rep: 'Brian', cat: 'AWS',   ch: '直客',   mgn: 0.21, rev: 310000, bill: 'OOC' },
+        { name: '捲弱造捲株式會社',           rep: 'Cathy', cat: 'GCP',   ch: '伙伴',   mgn: 0.08, rev: 140000, bill: 'OOC' },
+        { name: '天遊女子生居戶有限公司',     rep: 'David', cat: 'Azure', ch: '直客',   mgn: 0.29, rev: 230000, bill: 'MRC' },
+        { name: '隆曄醫盟有限公司',           rep: 'Eva',   cat: 'AWS',   ch: '直客',   mgn: 0.23, rev: 390000, bill: 'MRC' },
+        { name: '清淨寢館連鎖有限公司',       rep: 'Alice', cat: 'GCP',   ch: '代理商', mgn: 0.32, rev: 88000,  bill: 'OOC' },
+        { name: '瑟小屈格紀棟有限公司',       rep: 'Brian', cat: 'Azure', ch: '伙伴',   mgn: 0.16, rev: 115000, bill: 'OOC' },
+    ];
+
+    const rows = [];
+    [1, 2, 3, 4].forEach(m => {
+        clients.forEach((c, idx) => {
+            if (m >= 3 && idx >= 14 && Math.random() < 0.45) return;
+            const noise  = 0.90 + Math.random() * 0.20;
+            const growth = 1 + (m - 1) * 0.035;
+            const rev    = Math.round(c.rev * noise * growth);
+            const profit = Math.round(rev * c.mgn * (0.92 + Math.random() * 0.16));
+            rows.push({ '年度': 2026, '月份': m, '公司名': c.name, '業務': c.rep,
+                        '性質': c.cat, '類別': c.bill, '經銷': c.ch, '未稅': rev, '毛利': profit });
+        });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows, {
+        header: ['年度','月份','公司名','業務','性質','類別','經銷','未稅','毛利']
+    });
+    ws['!cols'] = [{wch:8},{wch:6},{wch:24},{wch:10},{wch:8},{wch:6},{wch:8},{wch:12},{wch:12}];
+
+    const wsInfo = XLSX.utils.aoa_to_sheet([
+        ['欄位名稱', '說明', '範例值'],
+        ['年度',    '西元年份',                                        '2026'],
+        ['月份',    '1~12 的數字',                                     '3'],
+        ['公司名',  '客戶全名（同一客戶跨月需一致，作為唯一識別）',        '台灣雲端科技股份有限公司'],
+        ['業務',    '負責業務的姓名',                                    'Alice'],
+        ['性質',    '產品/服務類別（可自行定義）',                        'AWS / GCP / Azure / 廣告投放 / 顧問服務'],
+        ['類別',    'MRC=月經訂閱 / OOC=單次專案',                      'MRC'],
+        ['經銷',    '銷售渠道',                                         '直客 / 代理商 / 伙伴'],
+        ['未稅',    '未含稅營收金額 (NT$)，整數',                        '580000'],
+        ['毛利',    '毛利金額 (NT$)，可為負值',                          '162400'],
+        ['', '', ''],
+        ['★ 使用說明', '上傳時只需保留第一張工作表「資料」即可', ''],
+        ['★ 適用行業', '雲端服務 / 軟體訂閱 / 廣告代理 / 貿易 / 製造業 / 任何有業務分潤的行業', ''],
+    ]);
+    wsInfo['!cols'] = [{wch:10},{wch:50},{wch:35}];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '資料');
+    XLSX.utils.book_append_sheet(wb, wsInfo, '格式說明');
+    XLSX.writeFile(wb, '業績報表_範例資料.xlsx');
+}
 
 </script>
 </body>
