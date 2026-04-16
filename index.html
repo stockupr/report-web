@@ -866,7 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
             labelRevenue.classList.add('active');
             labelProfit.classList.remove('active');
         }
-        if (processedData) updateDashboard();
+        if (processedData) { processData(); updateDashboard(); } // 需重算排名再更新畫面
     });
 
     // 2. Setup Excel Upload
