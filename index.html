@@ -472,6 +472,40 @@ th.sortable.sort-desc::after {
     opacity: 1;
 }
 
+/* Filter Row */
+.filter-row th {
+    padding: 0.4rem 0.75rem;
+    border-bottom: 2px solid var(--accent);
+    background: #f0fafa;
+}
+
+.filter-select {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: var(--radius-md);
+    padding: 0.25rem 0.4rem;
+    font-size: 0.78rem;
+    color: var(--text-primary);
+    background-color: #fff;
+    outline: none;
+    cursor: pointer;
+    max-width: 140px;
+}
+.filter-select:focus { border-color: var(--accent); }
+
+.filter-reset-btn {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--accent);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.filter-reset-btn:hover { text-decoration: underline; }
+
 tbody tr {
     transition: background-color 0.15s ease;
 }
@@ -728,10 +762,39 @@ tbody tr:hover {
                             <th id="th-pct" class="sortable" onclick="handleTableSort('pct')">佔比 %</th>
                             <th>績效標籤</th>
                         </tr>
+                        <tr class="filter-row" id="filter-row">
+                            <th id="th-period-filter"></th>
+                            <th></th>
+                            <th>
+                                <select class="filter-select" id="filter-rep" onchange="applyTableFilter()">
+                                    <option value="all">全部業務</option>
+                                </select>
+                            </th>
+                            <th>
+                                <select class="filter-select" id="filter-category" onchange="applyTableFilter()">
+                                    <option value="all">全部類別</option>
+                                </select>
+                            </th>
+                            <th></th>
+                            <th></th>
+                            <th>
+                                <select class="filter-select" id="filter-tag" onchange="applyTableFilter()">
+                                    <option value="all">全部標籤</option>
+                                    <option value="新進客戶">新進客戶</option>
+                                    <option value="強勁成長">強勁成長</option>
+                                    <option value="穩定維持">穩定維持</option>
+                                    <option value="持平">持平</option>
+                                    <option value="預警衰退">預警衰退</option>
+                                    <option value="年度彙總">年度彙總</option>
+                                </select>
+                                <br>
+                                <button class="filter-reset-btn" onclick="resetTableFilters()">↺ 重設篩選</button>
+                            </th>
+                        </tr>
                     </thead>
                     <tbody id="table-body">
                         <!-- Rows rendered via JS -->
-                        <tr><td colspan="6" class="empty-state">請上傳 Excel 來檢視資料</td></tr>
+                        <tr><td colspan="7" class="empty-state">請上傳 Excel 來檢視資料</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -757,6 +820,11 @@ let compChart = null;
 
 let currentSortCol = 'val'; // 'val' or 'pct'
 let currentSortDir = 'desc'; // 'asc' or 'desc'
+
+// Table Filter State
+let tableFilterRep = 'all';
+let tableFilterCategory = 'all';
+let tableFilterTag = 'all';
 
 // DOM Elements
 const uploadInput = document.getElementById('excel-upload');
@@ -1205,7 +1273,8 @@ function updateDashboard() {
     // KPI 2
     // Static placeholder - wait for budget data
 
-    // KPI 3
+    // KPI 3 — 標題隨模式切換，集中度用對應模式的前五大計算
+    kpi3Title.textContent = currentMode === 'revenue' ? '前五大客戶集中度 (營收)' : '前五大客戶集中度 (毛利)';
     const top5Pct = modeTotal > 0 ? (summary.top5Total / modeTotal) * 100 : 0;
     kpi3Value.textContent = top5Pct.toFixed(1) + "%";
     
@@ -1305,53 +1374,83 @@ function initCharts() {
         }
     });
     
-    // Products Chart
+    // Products Chart — 引導線優化版：afterDraw 統一畫線條+名稱+百分比，不再處理重疊
     const ctxProd = document.getElementById('productChart').getContext('2d');
     productChart = new Chart(ctxProd, {
         type: 'doughnut',
         data: { labels: [], datasets: [] },
         options: {
             responsive: true, maintainAspectRatio: false,
-            cutout: '60%',
-            plugins: { legend: { position: 'bottom' } }, // fallback
-            layout: { padding: { left: 60, right: 60, top: 50, bottom: 50 } }
+            cutout: '58%',
+            layout: { padding: { left: 90, right: 90, top: 55, bottom: 55 } },
+            plugins: {
+                legend: { display: false },
+                datalabels: { display: false }  // 由 afterDraw 統一處理
+            }
         },
         plugins: [{
-            id: 'callout-lines',
+            id: 'callout-labels',
             afterDraw: (chart) => {
-                if (chart.config.options.plugins.legend && chart.config.options.plugins.legend.display) return;
                 const ctx = chart.ctx;
                 const meta = chart.getDatasetMeta(0);
-                if (!meta.data || meta.data.length === 0) return;
-                
+                if (!meta || !meta.data || meta.data.length === 0) return;
+
+                const dataset = chart.data.datasets[0];
+                const total = (dataset.data || []).reduce((s, v) => s + (v || 0), 0);
+                if (total === 0) return;
+
                 chart.data.labels.forEach((label, i) => {
                     const arc = meta.data[i];
                     if (!arc || arc.hidden) return;
-                    
-                    const dataset = chart.data.datasets[0];
-                    const data = dataset.data[i];
-                    const total = dataset.data.reduce((sum, v) => sum + v, 0);
-                    if (total === 0 || (data/total*100) < 1) return;
+
+                    const value = dataset.data[i] || 0;
+                    const pct = Math.round(value / total * 100);
+                    if (pct < 2) return; // 極小扇區略過
 
                     const angle = (arc.startAngle + arc.endAngle) / 2;
+                    const cosA = Math.cos(angle);
+                    const sinA = Math.sin(angle);
                     const r = arc.outerRadius;
-                    
-                    const edgeX = arc.x + Math.cos(angle) * r;
-                    const edgeY = arc.y + Math.sin(angle) * r;
-                    
-                    const outX = arc.x + Math.cos(angle) * (r + 15);
-                    const outY = arc.y + Math.sin(angle) * (r + 15);
-                    
+                    const cx = arc.x;
+                    const cy = arc.y;
+                    const isRight = cosA >= 0;
+
+                    // 引導線對數
+                    const lineOut = 22;   // 從圈外縼延伸的長度
+                    const tickLen = 20;   // 水平勾緩長度
+                    const gap = 5;        // 文字距勾緩的間距
+
+                    const edgeX = cx + cosA * r;
+                    const edgeY = cy + sinA * r;
+                    const outX  = cx + cosA * (r + lineOut);
+                    const outY  = cy + sinA * (r + lineOut);
+                    const tickX = outX + (isRight ? tickLen : -tickLen);
+
+                    // 畫引導線
                     ctx.save();
                     ctx.beginPath();
                     ctx.moveTo(edgeX, edgeY);
                     ctx.lineTo(outX, outY);
-                    const isRight = Math.cos(angle) >= 0;
-                    ctx.lineTo(outX + (isRight ? 10 : -10), outY);
-                    
-                    ctx.strokeStyle = dataset.backgroundColor[i] || '#9ca3af';
+                    ctx.lineTo(tickX, outY);
+                    ctx.strokeStyle = (dataset.backgroundColor || [])[i] || '#9ca3af';
                     ctx.lineWidth = 1.5;
+                    ctx.lineJoin = 'round';
                     ctx.stroke();
+
+                    // 畫標籤名稱（在勾緩尾端外側）
+                    const textX = tickX + (isRight ? gap : -gap);
+                    ctx.font = '600 12px Inter, -apple-system, sans-serif';
+                    ctx.fillStyle = '#1f2937';
+                    ctx.textAlign = isRight ? 'left' : 'right';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(label, textX, outY - 1);
+
+                    // 畫百分比（名稱下方）
+                    ctx.font = '500 11px Inter, -apple-system, sans-serif';
+                    ctx.fillStyle = '#6b7280';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(pct + '%', textX, outY + 2);
+
                     ctx.restore();
                 });
             }
@@ -1488,10 +1587,15 @@ function updateCompositionChart(customersData) {
 function updateTopClientsChart(customersData) {
     const metric = currentMode;
     const sortBy = metric === 'revenue' ? 'totalRevenue' : 'totalProfit';
+    // 依當前模式重新排序，確保前五大是以毛利或營收排名
     const sorted = [...customersData].sort((a,b) => b[sortBy] - a[sortBy]).slice(0, 5);
     const labels = sorted.map(c => c.clientName);
     const data = sorted.map(c => c[sortBy]);
     const valueTypeLabel = metric === 'revenue' ? '營收金額 (NT$)' : '毛利金額 (NT$)';
+
+    // 動態更新圖表標題
+    document.getElementById('chart4-title').textContent =
+        metric === 'revenue' ? '前五大客戶貢獻金額 (依營收)' : '前五大客戶貢獻金額 (依毛利)';
 
     topClientsChart.data = {
         labels: labels,
@@ -1499,7 +1603,7 @@ function updateTopClientsChart(customersData) {
             {
                 label: `貢獻${valueTypeLabel}`,
                 data: data,
-                backgroundColor: '#f59e0b',
+                backgroundColor: metric === 'revenue' ? '#f59e0b' : '#10b981',
                 borderRadius: 4
             }
         ]
@@ -1511,10 +1615,33 @@ function updateSalesChart(repsData) {
     const metric = currentMode;
     const sorted = [...repsData].sort((a,b) => b[metric] - a[metric]).slice(0, 10);
     
-    if (!salesChart.options.scales.x) salesChart.options.scales.x = {};
-    salesChart.options.scales.x.stacked = true;
-    if (!salesChart.options.scales.y) salesChart.options.scales.y = {};
-    salesChart.options.scales.y.stacked = true;
+    // 修正一：設定 y1 軸（月成長率），加入 suggestedMin/Max 避免折線被截斷
+    salesChart.options.scales.x = { stacked: true };
+    salesChart.options.scales.y = { 
+        stacked: true, 
+        beginAtZero: true,
+        grid: { borderDash: [5, 5] }
+    };
+    salesChart.options.scales.y1 = {
+        type: 'linear',
+        display: true,
+        position: 'right',
+        grid: { drawOnChartArea: false },
+        suggestedMin: -60,
+        suggestedMax: 60,
+        ticks: {
+            callback: function(value) { return value + '%'; }
+        }
+    };
+
+    // 計算實際成長率範圍，動態調整 y1 軸
+    const growthVals = sorted.map(d => d.growth).filter(v => v !== null);
+    if (growthVals.length > 0) {
+        const minG = Math.min(...growthVals);
+        const maxG = Math.max(...growthVals);
+        salesChart.options.scales.y1.suggestedMin = Math.min(-20, Math.floor(minG * 1.3));
+        salesChart.options.scales.y1.suggestedMax = Math.max(20, Math.ceil(maxG * 1.3));
+    }
 
     salesChart.data = {
         labels: sorted.map(d => d.name),
@@ -1539,18 +1666,26 @@ function updateSalesChart(repsData) {
                 type: 'line',
                 label: '月成長率 (%)',
                 data: sorted.map(d => d.growth),
-                borderColor: '#374151', backgroundColor: '#374151',
-                borderWidth: 2, tension: 0.4, pointRadius: 4,
+                borderColor: '#ef4444', backgroundColor: '#ef4444',
+                borderWidth: 2, tension: 0.4, pointRadius: 5,
+                spanGaps: false,
                 order: 1, yAxisID: 'y1',
                 datalabels: {
                     display: true,
-                    align: 'top',
-                    anchor: 'end',
-                    color: '#374151',
-                    font: { weight: 'bold', size: 12 },
+                    align: function(ctx) {
+                        const val = ctx.dataset.data[ctx.dataIndex];
+                        return val !== null && val < 0 ? 'bottom' : 'top';
+                    },
+                    anchor: function(ctx) {
+                        const val = ctx.dataset.data[ctx.dataIndex];
+                        return val !== null && val < 0 ? 'start' : 'end';
+                    },
+                    color: '#ef4444',
+                    font: { weight: 'bold', size: 11 },
                     offset: 4,
                     formatter: function(value) {
-                        return (value > 0 ? '+' : '') + Math.round(value) + '%';
+                        if (value === null) return 'N/A';
+                        return (value > 0 ? '+' : '') + value.toFixed(1) + '%';
                     }
                 }
             }
@@ -1581,38 +1716,28 @@ function updateSalesChart(repsData) {
 function updateProductChart(prodData) {
     const metric = currentMode;
     const sorted = [...prodData].sort((a,b) => b[metric] - a[metric]);
-    const revColors = ['#20b2aa', '#3b82f6', '#f59e0b', '#374151', '#e5e7eb'];
+    const revColors    = ['#20b2aa', '#3b82f6', '#f59e0b', '#374151', '#e5e7eb'];
     const profitColors = ['#10b981', '#6366f1', '#f97316', '#4b5563', '#9ca3af'];
+    const colors = metric === 'revenue' ? revColors : profitColors;
     
-    document.getElementById('chart2-title').textContent = metric === 'revenue' ? '產品類別營收貢獻比例' : '產品類別毛利貢獻比例';
-
-    const total = sorted.reduce((sum, d) => sum + d[metric], 0);
+    document.getElementById('chart2-title').textContent =
+        metric === 'revenue' ? '產品類別營收貢獻比例' : '產品類別毛利貢獻比例';
 
     productChart.data = {
         labels: sorted.map(d => d.label || d.category),
         datasets: [{
             data: sorted.map(d => d[metric]),
-            backgroundColor: metric === 'revenue' ? revColors : profitColors,
-            borderWidth: 0, hoverOffset: 4
+            backgroundColor: colors,
+            borderColor: '#fff',
+            borderWidth: 2,
+            hoverOffset: 6
         }]
     };
-    
+
+    // 將 padding 與 datalabels 設定同步給 productChart（引導線由 afterDraw 畫）
+    productChart.options.layout = { padding: { left: 90, right: 90, top: 55, bottom: 55 } };
     productChart.options.plugins.legend.display = false;
-    productChart.options.layout = { padding: { left: 60, right: 60, top: 50, bottom: 50 } }; 
-    productChart.options.plugins.datalabels = {
-        display: true,
-        color: '#4b5563',
-        formatter: (value, context) => {
-            const label = context.chart.data.labels[context.dataIndex];
-            const pct = total > 0 ? Math.round(value / total * 100) : 0;
-            return pct > 0 ? `${label}\n${pct}%` : '';
-        },
-        font: { size: 13, weight: '600' },
-        textAlign: 'center',
-        anchor: 'end',
-        align: 'end',
-        offset: 15
-    };
+    productChart.options.plugins.datalabels = { display: false };
 
     productChart.update();
 }
@@ -1658,9 +1783,51 @@ function updateTable(customersData) {
     const metric = currentMode;
     const sortBy = metric === 'revenue' ? 'totalRevenue' : 'totalProfit';
     
+    // 動態更新篩選下拉選項（業務、產品類別）
+    const allReps = [...new Set(customersData.map(c => c.salesRep))].sort();
+    const allCategories = [...new Set(customersData.map(c => c.category))].sort();
+    const filterRepEl = document.getElementById('filter-rep');
+    const filterCatEl = document.getElementById('filter-category');
+    
+    // 更新業務選項，保留當前選擇
+    const savedRep = filterRepEl.value;
+    filterRepEl.innerHTML = '<option value="all">全部業務</option>';
+    allReps.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r; opt.textContent = r;
+        if (r === savedRep) opt.selected = true;
+        filterRepEl.appendChild(opt);
+    });
+    if (savedRep !== 'all' && allReps.includes(savedRep)) filterRepEl.value = savedRep;
+    else { filterRepEl.value = 'all'; tableFilterRep = 'all'; }
+
+    // 更新類別選項，保留當前選擇
+    const savedCat = filterCatEl.value;
+    filterCatEl.innerHTML = '<option value="all">全部類別</option>';
+    allCategories.forEach(cat => {
+        const opt = document.createElement('option');
+        opt.value = cat; opt.textContent = cat;
+        if (cat === savedCat) opt.selected = true;
+        filterCatEl.appendChild(opt);
+    });
+    if (savedCat !== 'all' && allCategories.includes(savedCat)) filterCatEl.value = savedCat;
+    else { filterCatEl.value = 'all'; tableFilterCategory = 'all'; }
+
+    // 同步篩選 tag 下拉
+    document.getElementById('filter-tag').value = tableFilterTag;
+
+    // 月份欄位篩選列顯示控制
+    const thPeriodFilter = document.getElementById('th-period-filter');
+    if (thPeriodFilter) thPeriodFilter.style.display = currentSelectedMonth === 'all' ? 'none' : '';
+
+    // 套用篩選
+    let filtered = [...customersData];
+    if (tableFilterRep !== 'all') filtered = filtered.filter(c => c.salesRep === tableFilterRep);
+    if (tableFilterCategory !== 'all') filtered = filtered.filter(c => c.category === tableFilterCategory);
+    if (tableFilterTag !== 'all') filtered = filtered.filter(c => c.tag === tableFilterTag);
+
     // Applying sort
-    let sorted = [...customersData];
-    sorted.sort((a, b) => {
+    filtered.sort((a, b) => {
         let valA = currentSortCol === 'val' ? a[sortBy] : a.pctOfTotal;
         let valB = currentSortCol === 'val' ? b[sortBy] : b.pctOfTotal;
         return currentSortDir === 'desc' ? valB - valA : valA - valB;
@@ -1686,7 +1853,12 @@ function updateTable(customersData) {
     const activeThId = currentSortCol === 'val' ? 'th-revenue' : 'th-pct';
     document.getElementById(activeThId).classList.add(currentSortDir === 'asc' ? 'sort-asc' : 'sort-desc');
 
-    sorted.forEach(row => {
+    if (filtered.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="7" class="empty-state">目前篩選條件無符合資料，請調整篩選。</td></tr>';
+        return;
+    }
+
+    filtered.forEach(row => {
         const tr = document.createElement('tr');
         if (row.marginPct > 0 && row.marginPct < 10) tr.style.backgroundColor = 'rgba(239, 68, 68, 0.05)';
         else if (row.isTop5) tr.style.backgroundColor = 'rgba(245, 158, 11, 0.05)';
@@ -1715,6 +1887,23 @@ function updateTable(customersData) {
         `;
         tableBody.appendChild(tr);
     });
+}
+
+function applyTableFilter() {
+    tableFilterRep = document.getElementById('filter-rep').value;
+    tableFilterCategory = document.getElementById('filter-category').value;
+    tableFilterTag = document.getElementById('filter-tag').value;
+    if (processedData) updateTable(processedData.customers);
+}
+
+function resetTableFilters() {
+    tableFilterRep = 'all';
+    tableFilterCategory = 'all';
+    tableFilterTag = 'all';
+    document.getElementById('filter-rep').value = 'all';
+    document.getElementById('filter-category').value = 'all';
+    document.getElementById('filter-tag').value = 'all';
+    if (processedData) updateTable(processedData.customers);
 }
 
 function handleTableSort(col) {
