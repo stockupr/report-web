@@ -1206,9 +1206,23 @@ function processData() {
         return c;
     });
 
-    const top5Total = customers.filter(c => c.rankGroup === 'Top5').reduce((sum, c) => sum + c[sortBy], 0);
-    const midTotal = customers.filter(c => c.rankGroup === 'Rank6_20').reduce((sum, c) => sum + c[sortBy], 0);
-    const otherTotal = customers.filter(c => c.rankGroup === 'Other').reduce((sum, c) => sum + c[sortBy], 0);
+    // 集中度計算：只用「正値」客戶做分母，避免負毛利導致超過 100%
+    const sortBy4Conc = currentMode === 'revenue' ? 'totalRevenue' : 'totalProfit';
+    // 前五大：取正値部分
+    const top5PositiveTotal = customers
+        .filter(c => c.isTop5 && c[sortBy4Conc] > 0)
+        .reduce((sum, c) => sum + c[sortBy4Conc], 0);
+    // 所有客戶中只加總正値（负値不入分母，避免分母被拉低）
+    const concentrationBase = customers
+        .filter(c => c[sortBy4Conc] > 0)
+        .reduce((sum, c) => sum + c[sortBy4Conc], 0);
+    const concentrationPct = concentrationBase > 0
+        ? (top5PositiveTotal / concentrationBase) * 100
+        : 0;
+
+    const top5Total = customers.filter(c => c.rankGroup === 'Top5').reduce((sum, c) => sum + c[sortBy4Conc], 0);
+    const midTotal  = customers.filter(c => c.rankGroup === 'Rank6_20').reduce((sum, c) => sum + c[sortBy4Conc], 0);
+    const otherTotal = customers.filter(c => c.rankGroup === 'Other').reduce((sum, c) => sum + c[sortBy4Conc], 0);
 
     // 5. Monthly Trend Aggregation
     const trendMap = {};
@@ -1227,7 +1241,9 @@ function processData() {
     const oocProfit = filteredData.filter(d => d.billType !== 'MRC').reduce((sum, d) => sum + d.profit, 0);
 
     processedData = {
-        summary: { totalRevenue, totalProfit, prevTotalRevenue, prevTotalProfit, uniqueClients, avgMargin, top5Total, midTotal, otherTotal, lowMarginCount, newClientRevenue, newClientProfit, lostClientsCount },
+        summary: { totalRevenue, totalProfit, prevTotalRevenue, prevTotalProfit, uniqueClients, avgMargin,
+                   top5Total, midTotal, otherTotal, concentrationPct,
+                   lowMarginCount, newClientRevenue, newClientProfit, lostClientsCount },
         salesReps,
         products,
         channels,
@@ -1273,9 +1289,9 @@ function updateDashboard() {
     // KPI 2
     // Static placeholder - wait for budget data
 
-    // KPI 3 — 標題隨模式切換，集中度用對應模式的前五大計算
+    // KPI 3 — 集中度改用 concentrationPct（已排除負値的正確分母）
     kpi3Title.textContent = currentMode === 'revenue' ? '前五大客戶集中度 (營收)' : '前五大客戶集中度 (毛利)';
-    const top5Pct = modeTotal > 0 ? (summary.top5Total / modeTotal) * 100 : 0;
+    const top5Pct = summary.concentrationPct;
     kpi3Value.textContent = top5Pct.toFixed(1) + "%";
     
     if (top5Pct > 60) {
